@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>On The Dime Timing — Official Results</title>
+<style>
+:root{--navy:#041c3f;--navy2:#082c5d;--orange:#ff5a0a;--paper:#f5f7fa;--line:#d9e0e8;--muted:#667085;--green:#157347}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);font-family:Arial,Helvetica,sans-serif;color:#10233f}.wrap{max-width:1100px;margin:0 auto;padding:18px}.head{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:22px;border-radius:16px;border-bottom:5px solid var(--orange);box-shadow:0 8px 24px rgba(4,28,63,.12)}.brand{font-size:.78rem;font-weight:900;letter-spacing:.13em;color:#ffd1b8;text-transform:uppercase}.head h1{margin:5px 0 2px;font-size:clamp(1.45rem,4vw,2.2rem)}.sub{opacity:.86;font-size:.88rem}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.tabs button,.event-link{border:1px solid #cfd7e2;background:#fff;color:var(--navy);border-radius:10px;padding:10px 14px;font-weight:900;cursor:pointer}.tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy)}.card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 3px 12px rgba(4,28,63,.06)}.meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--muted);font-size:.8rem;font-weight:700}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:11px 12px;border-bottom:1px solid #e7ebf0;text-align:left}th{font-size:.69rem;letter-spacing:.06em;text-transform:uppercase;background:#edf2f7;color:#475467}tbody tr:hover{background:#fafbfc}.place{font-weight:950;color:var(--navy)}.time{font-weight:950;font-variant-numeric:tabular-nums}.section{margin:20px 0 8px;font-size:.92rem;font-weight:950;color:var(--navy)}.status{font-weight:950;text-transform:uppercase}.status.dnf{color:#b54708}.status.dns{color:#667085}.msg{padding:34px 18px;text-align:center;background:#fff;border:1px solid var(--line);border-radius:14px;color:var(--muted);font-weight:750}.directory{display:grid;gap:10px;margin-top:16px}.event-link{text-align:left;width:100%}.event-link strong{display:block;font-size:1rem}.event-link span{display:block;color:var(--muted);font-size:.78rem;margin-top:3px}.footer{text-align:center;color:var(--muted);font-size:.72rem;padding:18px 0 8px}@media(max-width:650px){.wrap{padding:10px}.head{padding:18px}.tabs{display:grid;grid-template-columns:1fr 1fr}.tabs button{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div class="brand">On The Dime Timing</div>
+    <h1 id="title">Official Results</h1>
+    <div id="subtitle" class="sub">Permanent race results archive</div>
+  </header>
+  <div id="tabs" class="tabs"></div>
+  <main id="out" class="msg">Loading official results…</main>
+  <div class="footer">Official results published by On The Dime Timing</div>
+</div>
+<script>
+"use strict";
+const BASE="https://gmkynbhxmeqsqjunhesl.supabase.co";
+const KEY="sb_publishable_b6n9mTCokg0hRA6ni54oGQ_D9PkHATz";
+function headers(){const h={apikey:KEY,Accept:"application/json"};if(!KEY.startsWith("sb_"))h.Authorization=`Bearer ${KEY}`;return h;}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDate=value=>{if(!value)return"";const d=new Date(value);return Number.isNaN(d.getTime())?"":d.toLocaleString([], {year:"numeric",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})};
+async function get(path){const r=await fetch(`${BASE}/rest/v1/${path}`,{headers:headers(),cache:"no-store"});if(!r.ok){const t=await r.text();throw new Error(`Official Results request failed (${r.status})${t?`: ${t}`:""}`)}return r.json()}
+let eventId=new URLSearchParams(location.search).get("event")||"";
+let races=[];
+function setEventInUrl(id){const u=new URL(location.href);u.searchParams.set("event",id);history.replaceState(null,"",u);eventId=id}
+async function showDirectory(){
+  const events=await get("otd_official_events?select=event_id,event_name,published_at,updated_at&order=updated_at.desc&limit=100");
+  $("tabs").innerHTML="";
+  $("title").textContent="Official Results";
+  $("subtitle").textContent="Select a published event";
+  if(!events.length){$("out").className="msg";$("out").textContent="No official results have been published yet.";return}
+  $("out").className="directory";
+  $("out").innerHTML=events.map(e=>`<button class="event-link" data-event="${esc(e.event_id)}"><strong>${esc(e.event_name)}</strong><span>Updated ${esc(fmtDate(e.updated_at||e.published_at))}</span></button>`).join("");
+  $("out").onclick=e=>{const b=e.target.closest("[data-event]");if(!b)return;setEventInUrl(b.dataset.event);loadEvent().catch(showError)};
+}
+async function loadEvent(){
+  const ev=await get(`otd_official_events?event_id=eq.${encodeURIComponent(eventId)}&select=event_id,event_name,published_at,updated_at&limit=1`);
+  if(!ev.length){$("tabs").innerHTML="";$("out").className="msg";$("out").textContent="Official results have not been published for this event yet.";return}
+  $("title").textContent=ev[0].event_name;
+  $("subtitle").textContent=`Permanent official archive • Updated ${fmtDate(ev[0].updated_at||ev[0].published_at)}`;
+  races=await get(`otd_official_races?event_id=eq.${encodeURIComponent(eventId)}&select=race_id,race_name,display_order,published_at,updated_at&order=display_order.asc,race_name.asc`);
+  $("tabs").innerHTML=races.map((r,i)=>`<button class="${i===0?"active":""}" data-id="${esc(r.race_id)}">${esc(r.race_name)}</button>`).join("");
+  $("tabs").onclick=e=>{const b=e.target.closest("[data-id]");if(!b)return;document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x===b));showRace(b.dataset.id).catch(showError)};
+  if(!races.length){$("out").className="msg";$("out").textContent="No races have been published for this event yet.";return}
+  await showRace(races[0].race_id);
+}
+async function showRace(id){
+  const race=races.find(r=>r.race_id===id);
+  $("out").className="msg";$("out").textContent="Loading race results…";
+  const rows=await get(`otd_official_results?race_id=eq.${encodeURIComponent(id)}&select=*&order=place.asc.nullslast,published_at.asc`);
+  const fin=rows.filter(x=>x.result_state==="finished");
+  const nf=rows.filter(x=>x.result_state!=="finished");
+  let h=`<section class="card"><div class="meta"><span>${esc(race?.race_name||"")}</span><span>${fin.length} finisher${fin.length===1?"":"s"}${nf.length?` • ${nf.length} non-finisher${nf.length===1?"":"s"}`:""}</span></div>`;
+  if(fin.length){h+=`<div class="table-wrap"><table><thead><tr><th>Place</th><th>Bib</th><th>Athlete</th><th>Team</th><th>Gender</th><th>Age</th><th>Age Group</th><th>AG Place</th><th>Time</th></tr></thead><tbody>${fin.map(x=>`<tr><td class="place">${esc(x.place)}</td><td>${esc(x.bib||"—")}</td><td>${esc(`${x.first_name||""} ${x.last_name||""}`.trim()||"—")}</td><td>${esc(x.team_name||"—")}</td><td>${esc(x.gender||"—")}</td><td>${esc(x.age??"—")}</td><td>${esc(x.age_group||"—")}</td><td>${esc(x.age_group_place??"—")}</td><td class="time">${esc(x.finish_time||"—")}</td></tr>`).join("")}</tbody></table></div>`}else{h+=`<div class="msg" style="border:0;border-radius:0">No finishers published.</div>`}h+=`</section>`;
+  if(nf.length){h+=`<div class="section">DNF / DNS</div><section class="card"><div class="table-wrap"><table><thead><tr><th>Status</th><th>Bib</th><th>Athlete</th><th>Team</th><th>Gender</th><th>Age</th></tr></thead><tbody>${nf.map(x=>`<tr><td class="status ${esc(x.result_state)}">${esc(String(x.result_state||"").toUpperCase())}</td><td>${esc(x.bib||"—")}</td><td>${esc(`${x.first_name||""} ${x.last_name||""}`.trim()||"—")}</td><td>${esc(x.team_name||"—")}</td><td>${esc(x.gender||"—")}</td><td>${esc(x.age??"—")}</td></tr>`).join("")}</tbody></table></div></section>`}
+  $("out").className="";$("out").innerHTML=h;
+}
+function showError(e){$("out").className="msg";$("out").textContent=e?.message||"Unable to load official results."}
+(eventId?loadEvent():showDirectory()).catch(showError);
+</script>
+</body>
+</html>
